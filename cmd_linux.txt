@@ -1,0 +1,11 @@
+Para compilar:
+gcc -o exec exec.c
+Para executar o compilado:
+./exec
+
+Para ver os processos:
+pstree
+
+pstree --show-pids
+pstree 29334 -c
+
