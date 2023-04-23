@@ -60,10 +60,9 @@ int main(int argc, char *argv[])
        	return 1;
     } 
     
-    // Limpar buffer e atribuir dizer que é cliente
+    // Mandar mensagem cliente
     memset(sendBuff, 0, BUFFER_SIZE);
     strcpy(sendBuff, "client");
-    printf("Enviando mensagem: %s\n", sendBuff);
 
     if (send(sockfd, sendBuff, BUFFER_SIZE, 0) < 0) {
         perror("Error sending worker hello");
@@ -73,9 +72,8 @@ int main(int argc, char *argv[])
     // Limpar buffer e atribuir valor da operacao
     memset(sendBuff, 0, BUFFER_SIZE);
     strcpy(sendBuff, argv[2]);
-    printf("Enviando mensagem: %s\n", sendBuff);
 
-     /* Manda mensagem da operação */
+    // Mandar mensagem operacao
     if (send(sockfd, sendBuff, BUFFER_SIZE + 1, 0) < 0) {
         perror("Erro envio da operação");
         exit(EXIT_FAILURE);

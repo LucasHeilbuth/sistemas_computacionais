@@ -10,10 +10,13 @@
 #include <time.h> 
 
 #define BUFFER_SIZE 1024
+#define MAX_CLIENTS 2
 
-int main(int argc, char *argv[])
-{
-    int listenfd = 0, connfd = 0;
+int main(int argc, char *argv[]){
+    int server_socket, client_socket[MAX_CLIENTS];
+    int has_conn = -1;
+    int conn_client = -1;
+    int conn_worker = -1;
     struct sockaddr_in serv_addr; 
     struct sockaddr_in client_addr; 
     unsigned int addrlen = sizeof(client_addr);
@@ -21,7 +24,7 @@ int main(int argc, char *argv[])
     char sendBuff[1025];
 
     /* Cria o Socket: SOCK_STREAM = TCP */
-    if( (listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+    if( (server_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
     	perror("socket");
     	return 1;
     }
@@ -36,23 +39,23 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(5000);
 
 	/* Associa o socket a estrutura sockaddr_in */
-    if (bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0){
+    if (bind(server_socket, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0){
     	perror("bind");
     	return 1;
     }
 
 
 	/* Inicia a escuta na porta */
-    listen(listenfd, 10); 
+    listen(server_socket, 10);
 
     while(1) {
-
-		/* Aguarda a conexão */	
-        connfd = accept(listenfd, (struct sockaddr*)&client_addr, &addrlen);
-
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+		/* Aguarda a conexão */
+        client_socket[i] = accept(server_socket, (struct sockaddr*)&client_addr, &addrlen);
          /* Recebe resposta de qual é a origem */
         memset(recvBuff, 0, BUFFER_SIZE);
-        if (recv(connfd, recvBuff, BUFFER_SIZE, 0) < 0) {
+
+        if (recv(client_socket[i], recvBuff, BUFFER_SIZE, 0) < 0) {
             perror("Error receiving request");
             exit(EXIT_FAILURE);
         }
@@ -64,22 +67,38 @@ int main(int argc, char *argv[])
 
         /* Se for cliente envia a mensagem para o worker */
         if (strcmp(recvBuff, "client") == 0) {
+            conn_client = i;
+
             // Limpar o buffer
             memset(recvBuff, 0, BUFFER_SIZE);
+
             // Recebe a operação do cliente
-            if (recv(connfd, recvBuff, BUFFER_SIZE, 0) < 0) {
+            if (recv(client_socket[0], recvBuff, BUFFER_SIZE, 0) < 0) {
                 perror("Error receiving request");
                 exit(EXIT_FAILURE);
             }
             printf("Mensagem recebida: %s\n", recvBuff);
-            /* Envia operação ao worker. */
-           // strcpy(sendBuff, recvBuff);
-         // send(connfd, sendBuff, strlen(sendBuff)+1, 0);*/
-        }
 
-        /* Se for worker printa a resposta na tela */
-        else if (strcmp(recvBuff, "worker") == 0) {
-            printf("Resposta da operação: %s", recvBuff);
+            // Envia operação ao worker
+            strcpy(sendBuff, recvBuff);
+
+                while (conn_worker < 0) {
+                    client_socket[!conn_client] = accept(server_socket, (struct sockaddr*)&client_addr, &addrlen);
+                    // Recebe mensagem worker para enviar
+                    if (recv(client_socket[!conn_client], recvBuff, BUFFER_SIZE, 0) < 0) {
+                        perror("Error receiving request");
+                        exit(EXIT_FAILURE);
+                    }
+                    if (strcmp(recvBuff, "worker") == 0) {
+                        conn_worker = !conn_client;
+                    // Mandar mensagem operacao
+                        if (send(client_socket[!conn_client], sendBuff, BUFFER_SIZE + 1, 0) < 0) {
+                            perror("Erro envio da operação");
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+                }
+
         }
 
         // Limpar o buffer
@@ -87,7 +106,10 @@ int main(int argc, char *argv[])
 
 
 		/* Fecha conexão com o cliente. */
-        close(connfd);
+        close(client_socket[i]);
+        conn_client = -1;
+        conn_worker = -1;
 
+     }
      }
 }
